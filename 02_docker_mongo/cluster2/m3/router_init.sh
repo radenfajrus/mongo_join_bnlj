@@ -1,0 +1,1 @@
+mongo mongodb://m1:17023/admin < ./scripts/router.js

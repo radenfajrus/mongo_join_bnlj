@@ -1,0 +1,43 @@
+version: '3.8'
+
+x-base: &base
+  image: mongo:5.0.5
+  volumes:
+    - ./scripts:/scripts
+  network_mode: "host"
+
+x-resource: &resource
+  deploy:
+    resources:
+      limits:
+        cpus: '0.2'
+        memory: 512M
+      reservations:
+        cpus: '0.2'
+        memory: 512M
+
+services:
+  ## Config Server Main
+  c2-c3:
+    container_name: c2-c3
+    command: |
+      /scripts/wait-for-it.sh m1:17021  -t 0 -- /scripts/wait-for-it.sh m2:17021  -t 0 -- mongod --bind_ip_all --port 17021 --configsvr --replSet cs
+    <<: *base
+    <<: *resource
+
+  ## Shards
+  c2-s3:
+    container_name: c2-s3
+    command: |
+      /scripts/wait-for-it.sh m1:17022  -t 0 -- /scripts/wait-for-it.sh m2:17022  -t 0 -- mongod --bind_ip_all --port 17022 --shardsvr --replSet rs3
+    <<: *base
+    <<: *resource
+
+  ## Router
+  c2-r3:
+    image: mongo:5.0.5
+    container_name: c2-r3
+    command: |
+      /scripts/wait-for-it.sh m1:17022 -t 0  -- /scripts/wait-for-it.sh m2:17022 -t 0  -- /scripts/wait-for-it.sh m3:17022 -- mongos --port 17023 --configdb cs/m1:17021,m2:17021,m3:17021 --bind_ip_all
+    <<: *base
+    <<: *resource

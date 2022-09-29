@@ -1,0 +1,63 @@
+version: '3.8'
+
+x-base: &base
+  image: mongo:5.0.5
+  volumes:
+    - ./scripts:/scripts
+  #network_mode: "host"
+  networks:
+    - cluster1
+
+networks:
+  cluster1:
+
+x-host: &host
+  extra_hosts:
+    - "m1:10.10.10.101"
+    - "m2:10.10.10.102"
+    - "m3:10.10.10.103"
+
+
+x-resource: &resource
+  deploy:
+    resources:
+      limits:
+        cpus: '0.2'
+        memory: 512M
+      reservations:
+        cpus: '0.2'
+        memory: 512M
+
+services:
+  ## Config Server Main
+  c1-c2:
+    container_name: c1-c2
+    ports:
+      - "0.0.0.0:17011:0.0.0.0:17011"
+    command: |
+      mongod --bind_ip_all --port 17011 --configsvr --replSet cs
+    <<: *base
+    <<: *resource
+    <<: *host
+
+  ## Shards
+  c1-s2:
+    container_name: c1-s2
+    ports:
+      - "0.0.0.0:17012:0.0.0.0:17012"
+    command: |
+      mongod --bind_ip_all --port 17012 --shardsvr --replSet rs2
+    <<: *base
+    <<: *resource
+    <<: *host
+
+  ## Router
+  c1-r2:
+    container_name: c1-r2
+    ports:
+      - "0.0.0.0:17013:0.0.0.0:17013"
+    command: |
+      /scripts/wait-for-it.sh m1:17012  -t 0 -- /scripts/wait-for-it.sh m2:17012 -t 0  -- /scripts/wait-for-it.sh m3:17012 -- mongos --port 17013 --configdb cs/m1:17011,m2:17011,m3:17011 --bind_ip_all
+    <<: *base
+    <<: *resource
+    <<: *host

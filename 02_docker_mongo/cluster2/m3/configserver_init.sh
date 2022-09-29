@@ -1,0 +1,1 @@
+mongo mongodb://m1:17021/admin < ./scripts/configserver.js
