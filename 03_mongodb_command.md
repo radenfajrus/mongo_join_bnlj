@@ -62,6 +62,47 @@ db.createUser(
     roles: [ { role: "root", db: "admin" } ]
   }
 )
+data1gb : part : 35.76171875 MB - 200000
+data1gb : partsupp : 169.171875 MB - 800000
+data1gb : nation : 0.0078125 MB - 0
+data1gb : lineitem : 720.390625 MB - 3700000
+data1gb : orders : 252.97265625 MB - 1500000
+data1gb : region : 0.0078125 MB - 0
+data1gb : supplier : 1.48046875 MB - 10000
+data1gb : customer : 45.98046875 MB - 150000
+    150000 /home/infra/TPC-H V3.0.1/dbgen/data1gb/customer.tbl
+   6001215 /home/infra/TPC-H V3.0.1/dbgen/data1gb/lineitem.tbl
+        25 /home/infra/TPC-H V3.0.1/dbgen/data1gb/nation.tbl
+   1500000 /home/infra/TPC-H V3.0.1/dbgen/data1gb/orders.tbl
+    800000 /home/infra/TPC-H V3.0.1/dbgen/data1gb/partsupp.tbl
+    200000 /home/infra/TPC-H V3.0.1/dbgen/data1gb/part.tbl
+         5 /home/infra/TPC-H V3.0.1/dbgen/data1gb/region.tbl
+     10000 /home/infra/TPC-H V3.0.1/dbgen/data1gb/supplier.tbl
+#data1gb : part : 87.66015625 MB - 400000
+#data1gb : partsupp : 22.484375 MB - 100000
+data1gb : lineitem : 0.0390625 MB - 25
+data1gb : orders : 0.0390625 MB - 25
+#data1gb : customer : 0.0390625 MB - 25
+
+
+data2gb : supplier : 1.48046875 MB - 10000
+data2gb : orders : 252.97265625 MB - 1500000
+data2gb : orders2 : 0 MB - 0
+data2gb : region : 0.0078125 MB - 0
+data2gb : nation : 0.0078125 MB - 0
+data2gb : lineitem : 722.29296875 MB - 3700000
+data2gb : customer : 45.98046875 MB - 150000
+data2gb : part : 35.76171875 MB - 200000
+data2gb : partsupp : 169.171875 MB - 800000
+    300000 /home/infra/TPC-H V3.0.1/dbgen/data2gb/customer.tbl
+  11997996 /home/infra/TPC-H V3.0.1/dbgen/data2gb/lineitem.tbl
+        25 /home/infra/TPC-H V3.0.1/dbgen/data2gb/nation.tbl
+   3000000 /home/infra/TPC-H V3.0.1/dbgen/data2gb/orders.tbl
+   1600000 /home/infra/TPC-H V3.0.1/dbgen/data2gb/partsupp.tbl
+    400000 /home/infra/TPC-H V3.0.1/dbgen/data2gb/part.tbl
+         5 /home/infra/TPC-H V3.0.1/dbgen/data2gb/region.tbl
+     20000 /home/infra/TPC-H V3.0.1/dbgen/data2gb/supplier.tbl
+
 
 db.updateUser("admin",
   {
@@ -77,6 +118,17 @@ db.auth( "admin", "admin" )
 
 ### CHECK COLLECTION SIZE
 db.collection.stats()
+
+
+
+insert : 400000
+insert : 9
+Traceback (most recent call last):
+  File "/home/infra/TPC-H V3.0.1/dbgen/main2.py", line 141, in <module>
+    db[s2].insert_many(data_bulk)
+  File "/opt/anaconda3/lib/python3.9/site-packages/pymongo/collection.py", line 574, in insert_many
+    raise TypeError("documents must be a non-empty list")
+TypeError: documents must be a non-empty list
 
 
 

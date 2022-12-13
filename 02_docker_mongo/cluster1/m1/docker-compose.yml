@@ -30,7 +30,7 @@ services:
   c1-c1:
     container_name: c1-c1
     ports:
-      - "0.0.0.0:17011:0.0.0.0:17011"
+      - "0.0.0.0:17011:17011"
     command: |
       /scripts/wait-for-it.sh m2:17011  -t 0 -- /scripts/wait-for-it.sh m3:17011  -t 0 -- mongod --bind_ip_all --port 17011 --configsvr --replSet cs
     <<: *base
@@ -41,7 +41,7 @@ services:
   c1-s1:
     container_name: c1-s1
     ports:
-      - "0.0.0.0:17012:0.0.0.0:17012"
+      - "0.0.0.0:17012:17012"
     command: |
       /scripts/wait-for-it.sh m2:17012  -t 0 -- /scripts/wait-for-it.sh m3:17012  -t 0 -- mongod --bind_ip_all --port 17012 --shardsvr --replSet rs1
     <<: *base
@@ -52,7 +52,7 @@ services:
   c1-r1:
     container_name: c1-r1
     ports:
-      - "0.0.0.0:17013:0.0.0.0:17013"
+      - "0.0.0.0:17013:17013"
     command: |
       /scripts/wait-for-it.sh m1:17012  -t 0 -- /scripts/wait-for-it.sh m2:17012  -t 0 -- /scripts/wait-for-it.sh m3:17012  -t 0 -- mongos --port 17013 --configdb cs/m1:17011,m2:17011,m3:17011 --bind_ip_all
     <<: *base
