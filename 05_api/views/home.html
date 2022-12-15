@@ -1,0 +1,713 @@
+{% extends "layouts/main.html" %}
+{% block styles %}
+<style>
+.flex-all{
+    display: flex;
+    overflow: hidden;
+    flex-direction: row;
+    padding: 20px;
+    gap: 20px;
+}
+.flex-left{
+    display: flex;
+    flex-direction: column;
+    width: 300px;
+    gap: 20px;
+    justify-content: space-around;
+}
+.flex-mid{
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+    gap: 20px;
+}
+.flex-right{
+    display: flex;
+    flex-direction: column;
+    width: 300px;
+    gap: 20px;
+}
+.box-api{
+    display: flex;
+    flex-direction: column;
+    border: 1px solid black;
+    height: 100%;
+}
+.box-api-history{
+    display: flex;
+    flex-direction: column;
+    border: 1px solid black;
+    height: 100%;
+}
+.box-join-state{
+    display: flex;
+    flex-direction: column;
+    border: 1px solid black;
+    height: 100%;
+}
+.box-chunk-state{
+    display: flex;
+    flex-direction: column;
+    border: 1px solid black;
+    height: 100%;
+}
+.box-slider-state{
+    display: flex;
+    flex-direction: column;
+    border: 1px solid black;
+    height: 100px;
+}
+.box-info{
+    display: flex;
+    flex-direction: column;
+    border: 1px solid black;
+    height: 100%;
+}
+.box-event{
+    display: flex;
+    flex-direction: column;
+    border: 1px solid black;
+    height: 100%;
+}
+</style>
+<style>
+.title{
+    display: flex;
+    flex-direction: column;
+    border: 1px solid black;
+    min-height: 20px;
+    padding: 4px 8px;
+}
+.box-api-content{
+    flex-grow: 1;
+}
+.box-api-content.invalid_json{
+    border: 5px solid red;
+}
+.box-api-submit{
+    display: flex;
+    flex-direction: row;
+    justify-content: space-around;
+    border: 1px solid black;
+}
+.box-api-submit > div{
+    padding: 4px 10px;
+}
+.box-api-url{
+    height: 100%;
+    flex-grow: 1;
+}
+.box-api-button{
+    cursor: pointer;
+}
+</style>
+<style>
+.chunk{
+    border: 1px solid darkgreen;
+    background-color: darkgreen;
+    width: fit-content;
+    color: white;
+    font-weight: bold;
+    padding: 0px 5px;
+    border-radius: 4px;
+}
+.chunk.B{
+    border: 1px solid darkblue;
+    background-color: darkblue;
+}
+</style>
+{% endblock %}
+<!-- #000000de  #f1f3f4; -->
+
+{% block content %}
+<div class="flex-all">
+    <div class="flex-left">
+        <div class="box-api">
+            <div class="title">API Request</div>
+            <textarea class="box-api-content" value="{}"></textarea>
+            <div class="box-api-submit">
+                <div class="box-api-method">POST</div>
+                <input class="box-api-url" type="text" value="/coordinator">
+                <div class="box-api-button" onclick="submit()">Send</div>
+            </div>
+        </div>
+        <div class="box-api-history">
+            <div class="title">History</div>
+            <div class="box-api-history-content"></div>
+        </div>
+    </div>
+    <div class="flex-mid">
+        <div class="box-join-state">
+            <div class="title">On Going Join</div>
+            <div class="box-join-state-content"></div>
+        </div>
+        <div class="box-chunk-state">
+            <div class="title">Chunk Location</div>
+            <div class="box-chunk-state-content"></div>
+        </div>
+        <div class="box-slider-state">
+            <div class="box-slider-state-content"></div>
+        </div>
+    </div>
+    <div class="flex-right">
+        <div class="box-info">
+            <div class="title">Info</div>
+            <div class="box-info-content"></div>
+        </div>
+        <div class="box-event">
+            <div class="title">Event</div>
+            <div class="box-event-content"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+
+{% block scripts %}
+<script>
+
+var list_history = []
+var current_trax_id = null
+
+var info_trax = {}
+
+var info_join_block = {}
+var info_join_trax = {}
+
+var list_event = []
+
+var trax_slider = {}
+var current_slider = null
+
+var local_storage = null
+class LocalStorage{
+    history = []
+    slider = null
+    api_body = "{}"
+    constructor(){
+        this.slider = localStorage.getItem("current_slider");
+        this.api_body = localStorage.getItem("api_body");
+        try{
+            this.history = JSON.parse(localStorage.getItem("list_history"));
+        }catch(e){
+            console.log(e)
+            this.history = []
+        }
+        if(!this.history){
+            this.history = []
+        }
+        list_history = this.history.map((a)=> {
+            return a
+        });
+    }
+    addApiBody(data){
+        localStorage.setItem("api_body",data);
+        this.api_body = data
+    }
+    removeTrax(id){
+        for (let i = 0; i< this.history.length; i++) {
+            if (this.history[i].id === id) {
+                this.history.splice(i, 1);
+            }
+        }
+        if(id === current_trax_id){
+            list_event = []
+            info_trax = {}
+            info_join_trax = []
+        }
+        localStorage.setItem("list_history",JSON.stringify(this.history));
+        list_history = this.history.map((a)=> {
+            return a
+        });
+        render_info_trax()
+        render_info_join_trax()
+        render_api_history()
+        render_event()
+    }
+    addTrax(data){
+        this.history.unshift({
+            id: data.id,
+            info: data.info,
+            server: data.server,
+            event : []
+        })
+        localStorage.setItem("list_history",JSON.stringify(this.history));
+        list_history = this.history.map((a)=> {
+            return a
+        });
+        info_trax = data.info
+        info_join_trax = data.server
+        render_api_history()
+        render_info_trax()
+        render_info_join_trax()
+        render_event()
+    }
+    addEvent(data){
+        let exists = this.history.filter((a)=>a.id = current_trax_id)
+        if(exists.length===0){
+            this.history.unshift({
+                id: id,
+                event : []
+            })
+        }
+        
+        this.history.map((a)=>{
+            if(a.id == current_trax_id){
+                a.event.unshift(data)
+            }
+            return a
+        })
+
+        list_event.unshift(data)
+        localStorage.setItem("list_history",JSON.stringify(this.history));
+        render_event()
+    }
+}
+class BlockJoin{
+    node_id 
+    x
+    y
+    constructor(){
+
+    }
+}
+class Block{
+    node_id 
+    x
+    y
+    parent_id
+    constructor(parent_id){
+
+    }
+}
+class Event{
+    blockjoin
+    constructor(){
+
+    }
+    forward(){
+
+    }
+    backward(){
+
+    }
+    move(){
+
+    }
+}
+var event_processor 
+class EventProcessor{
+    state 
+    events
+    constructor(events){
+        this.state = -1
+        this.events = events
+        for(let i in this.events){
+            if(i>this.state){
+                event.forward()
+            }
+        }
+    }
+}
+
+var wait_input = null
+function reformat_json(content){
+    try{
+        content_json = JSON.parse(content)
+        content = JSON.stringify(content_json, null, 4)
+        return { is_json: true, content : content }
+    }catch(e){
+        return { is_json: false, content : content }
+    }
+}
+function wait_input_timer(content){
+    wait_input = setTimeout(()=>{
+        let res= reformat_json(content);
+        $(".box-api-content").val(res.content)
+        if(res.is_json){
+            $(".box-api-content").removeClass("invalid_json")
+        }else{
+            $(".box-api-content").addClass("invalid_json")
+        }
+        local_storage.addApiBody(content)
+    },200)
+}
+$(".box-api-content").on('input', (e)=>{
+    let content = e.target.value
+    if(!wait_input){
+        wait_input_timer(content)
+    }else{
+        clearTimeout(wait_input)
+        wait_input_timer(content)
+    }
+})
+
+const ObjectId = (m = Math, d = Date, h = 12, s = s => m.floor(s).toString(h)) =>
+    s(d.now() / 1000) + ' '.repeat(h).replace(/./g, () => s(m.random() * h))
+function submit(){
+    let url = $(".box-api-url").val()
+    let body_str = ($(".box-api-content").val())
+    var requestOptions = { method: 'POST', body: body_str, redirect: 'follow',headers: { 'Content-Type': 'application/json' } };
+
+    $("#on_error").hide();
+    $("#on_scanning").show();
+    fetch(url,requestOptions)
+        .then((res)=>res.json())
+        .then((data)=>{
+            current_trax_id = ObjectId()
+            console.log(current_trax_id)
+            data = {
+                id: current_trax_id,
+                info: {
+                    db_1: "mongodb://m1:17017",
+                    db_2: "mongodb://m2:17027",
+                    table_1: "c1.data1gb.orders",
+                    table_2: "c2.data1gb.lineitem",
+                    start_time: Date.now(),
+                    end_time: Date.now(),
+                    chunks_1: [
+                        {
+                            name: "chunk11",
+                            cluster: "c1",
+                            shard: "s1",
+                        },
+                        {
+                            name: "chunk12",
+                            cluster: "c1",
+                            shard: "s2",
+                        },
+                        {
+                            name: "chunk13",
+                            cluster: "c1",
+                            shard: "s3",
+                        },
+                    ],
+                    chunks_2: [
+                        {
+                            name: "chunk21",
+                            cluster: "c2",
+                            shard: "s1",
+                        },
+                        {
+                            name: "chunk22",
+                            cluster: "c2",
+                            shard: "s2",
+                        },
+                        {
+                            name: "chunk23",
+                            cluster: "c2",
+                            shard: "s3",
+                        },
+                    ],
+                },
+                server:[
+                    {
+                        "cluster": "c1",
+                        "shard": "s1",
+                        "chunks": [
+                            {
+                                "id":"chunk11",
+                                "min":1,
+                                "max":100,
+                            },
+                        ]
+                    },
+                    {
+                        "cluster": "c1",
+                        "shard": "s2",
+                        "chunks": [
+                            {
+                                "id":"chunk12",
+                                "min":1,
+                                "max":100,
+                            },
+                        ]
+                    },
+                    {
+                        "cluster": "c1",
+                        "shard": "s3",
+                        "chunks": [
+                            {
+                                "id":"chunk13",
+                                "min":1,
+                                "max":100,
+                            },
+                        ]
+                    },
+                    {
+                        "cluster": "c2",
+                        "shard": "s1",
+                        "chunks": [
+                            {
+                                "id":"chunk21",
+                                "min":1,
+                                "max":100,
+                            },
+                        ]
+                    },
+                    {
+                        "cluster": "c2",
+                        "shard": "s2",
+                        "chunks": [
+                            {
+                                "id":"chunk22",
+                                "min":1,
+                                "max":100,
+                            },
+                        ]
+                    },
+                    {
+                        "cluster": "c2",
+                        "shard": "s3",
+                        "chunks": [
+                            {
+                                "id":"chunk23",
+                                "min":1,
+                                "max":100,
+                            },
+                        ]
+                    },
+                ]
+            }
+            local_storage.addTrax(data)
+        })
+        .catch((e)=>{
+            alert(e)
+            $("#on_error").show();
+        })
+        .finally(()=>{
+            $("#on_scanning").hide();
+        })
+}
+
+ 
+function render_info_chunk(server_id,chunk_id){
+    let hist = list_history.filter((hist)=>hist.id===current_trax_id)
+    console.log(hist)
+    if(hist.length>0){
+        $(".box-info-content").html(JSON.stringify(hist[0].server[server_id].chunks[chunk_id]))
+    }else{
+        $(".box-info-content").html("")
+    }
+}
+function render_info_trax(){
+    $(".box-info-content").html(JSON.stringify(info_trax))
+}
+function render_info_join_trax(){
+    list_htmls_1 = []
+    list_htmls_2 = []
+    let index = 0;
+    index_1 = 1;
+    index_2 = 1;
+    info_join_trax.forEach((server)=>{
+        if(server.cluster=="c1"){
+            list_htmls_1.push(`
+                <div class="body-row" id="trax-${server.cluster}-${server.shard}" style="display:flex;flex-direction:column;width:200px;height:120px;border: 1px solid darkblue">
+                    <div style="padding:0px 10px;cursor:pointer">[${index+1}] ${server.cluster}-${server.shard}</div>
+                    <div class="body-chunks" style="padding:10px 10px;cursor:pointer" id="">${
+                        server.chunks.map((chunk, index_chunk)=>{
+                            if(!("chunk_class" in server)){
+                                server["chunk_class"] = []
+                            }
+                            server.chunk_class.push(new Block(`A${index_chunk+1}`))
+                            return `<div class="chunk A" id="A${index_chunk+1}" onclick="render_info_chunk(${index},${index_chunk})">A${index_1}-${index_chunk+1}</div>`
+                        }).join("")
+                    }</div>
+                </div> 
+            `);
+            index_1 = index_1+1
+        }
+        if(server.cluster=="c2"){
+            list_htmls_2.push(`
+                <div class="body-row" id="trax-${server.cluster}-${server.shard}" style="display:flex;flex-direction:column;width:200px;height:120px;border: 1px solid darkblue">
+                    <div style="padding:0px 10px;cursor:pointer">[${index+1}] ${server.cluster}-${server.shard}</div>
+                    <div class="body-chunks" style="padding:10px 10px;cursor:pointer" id="">${
+                        server.chunks.map((chunk, index_chunk)=>{
+                            if(!("chunk_class" in server)){
+                                server["chunk_class"] = []
+                            }
+                            server.chunk_class.push(new Block(`B${index_chunk+1}`))
+                            return `<div class="chunk B" id="B${index_chunk+1}" onclick="render_info_chunk(${index},${index_chunk})">B${index_2}-${index_chunk+1}</div>`
+                        }).join("")
+                    }</div>
+                </div> 
+            `);
+            index_2 = index_2+1
+        }
+        index = index+1;
+    });
+    $('.box-chunk-state-content').html(`
+        <div class="body-block" style="display:flex">
+        <div class="body-row" style="    
+            display: inline-flex;
+            padding: 20px;
+            gap: 20px;
+            flex-wrap: wrap;
+            ">
+            ${list_htmls_1.join("")}
+        </div> 
+        <div class="body-row" style="    
+            display: inline-flex;
+            padding: 20px;
+            gap: 20px;
+            flex-wrap: wrap;
+            ">
+            ${list_htmls_2.join("")}
+        </div> 
+        </div> 
+    `);
+
+    list_htmls_1 = []
+    list_htmls_2 = []
+    index = 0;
+    index_1 = 1;
+    index_2 = 1;
+    console.log(info_join_trax)
+    info_join_trax.forEach((server)=>{
+        if(server.cluster=="c1"){
+            list_htmls_1.push(`
+                <div class="body-row" id="join-${server.cluster}-${server.shard}" style="display:flex;flex-direction:column;width:200px;height:120px;border: 1px solid darkblue">
+                    <div style="padding:0px 10px;cursor:pointer">[${index+1}] ${server.cluster}-${server.shard}</div>
+                    <!--div class="body-chunks" style="padding:10px 10px;cursor:pointer" id="">${
+                        server.chunks.map((chunk)=>{
+                            return `<div class="chunk A" id="" onclick="render_info_chunk(${index})">A${index_1}</div>`
+                        }).join("")
+                    }</div-->
+                </div> 
+            `);
+            index_1 = index_1+1
+        }
+        if(server.cluster=="c2"){
+            list_htmls_2.push(`
+                <div class="body-row" id="join-${server.cluster}-${server.shard}" style="display:flex;flex-direction:column;width:200px;height:120px;border: 1px solid darkblue">
+                    <div style="padding:0px 10px;cursor:pointer">[${index+1}] ${server.cluster}-${server.shard}</div>
+                    <!--div class="body-chunks" style="padding:10px 10px;cursor:pointer" id="">${
+                        server.chunks.map((chunk)=>{
+                            return `<div class="chunk B" id="" onclick="render_info_chunk(${index})">B${index_2}</div>`
+                        }).join("")
+                    }</div-->
+                </div> 
+            `);
+            index_2 = index_2+1
+        }
+        index = index+1;
+    });
+    $('.box-join-state-content').html(`
+        <div class="body-block" style="display:flex;flex-direction:row;justify-content:space-around;">
+        <div class="body-row" style="    
+            display: inline-flex;
+            padding: 20px;
+            gap: 20px;
+            flex-wrap: wrap;
+            ">
+            ${list_htmls_1.join("")}
+        </div> 
+        <div class="body-row" style="    
+            display: inline-flex;
+            padding: 20px;
+            gap: 20px;
+            flex-wrap: wrap;
+            ">
+            ${list_htmls_2.join("")}
+        </div> 
+        </div> 
+    `);
+}
+function render_api_history(){
+    list_htmls = [];
+    list_history.forEach((data, index) => {
+        list_htmls.push(`
+            <div class="body-row" style="display:flex;flex-direction:row;padding:16px;gap:8px">
+                <div class="col-md-1">${index+1}</div>
+                <div class="col-md-8" style="height: 100%;padding:0;cursor:pointer" onclick="change_trax(${index})">${data.id}</div>
+                <div class="col-md-2">${new Date().getHours()}:${new Date().getMinutes() }</div>
+                <div class="col-md-1" style="height: 100%;padding:0;cursor:pointer" onclick="local_storage.removeTrax('${data.id}')">X</div>
+            </div> 
+        `);
+    });
+    $('.box-api-history-content').html(list_htmls.join(""));
+}
+function render_event(){
+    list_htmls = [];
+    list_event.forEach((data,index) => {
+        list_htmls.push(`
+            <div class="body-row" style="display:flex;flex-direction:column;">
+                <div class="col-md-1">${index+1}</div>
+                <div class="col-md-6" style="height: 100%;padding:0;cursor:pointer">${data.id}</div>
+                <div class="col-md-3">20:12</div>
+                <div class="col-md-3">1200s</div>
+            </div> 
+        `);
+    });
+    $('.box-event-content').html(list_htmls.join(""));
+}
+
+
+var ws;
+var proto = location.protocol==="https:"?"wss":"ws"
+var ws_url = `${proto}://${window.location.host}/wss`;
+function connect_ws() {
+    ws = new WebSocket(ws_url);
+    ws.onopen = function() {
+        console.log('Ws connected : '+ws_url);
+    };
+    ws.onmessage = async function(e) {
+        let data_json = JSON.parse(e.data)
+
+        let event = data_json.event;
+        let type = data_json.type;
+        let data = data_json.data;
+        switch (type) {
+            case "JOIN_START":
+                console.log("JOIN_START")
+                break;
+            case "BLOCK_JOIN_INIT":
+                console.log("BLOCK_JOIN_INIT")
+                break;
+            case "BLOCK_JOIN_SUCCESS":
+                console.log("BLOCK_JOIN_SUCCESS")
+                break;
+            case "BLOCK_JOIN_FAILURE":
+                console.log("BLOCK_JOIN_FAILURE")
+                break;
+            case "EXECUTOR_TIMEOUT":
+                console.log("EXECUTOR_TIMEOUT")
+                break;
+            case "EXECUTOR_RETRY":
+                console.log("EXECUTOR_RETRY")
+                break;
+            case "JOIN_FINISH":
+                console.log("JOIN_FINISH")
+                break;
+            default:
+                console.log(`OTHER : ${e.data}`)
+                break;
+        }
+    };
+    ws.onclose = (e) => console.log;
+    ws.onerror = (err) => console.log;
+}
+
+function change_trax(idx){
+    current_trax_id = list_history[idx].id
+    list_event = list_history[idx].event
+    info_trax = list_history[idx].info
+    info_join_trax = list_history[idx].server
+    console.log(list_history[idx])
+    render_info_trax()
+    render_info_join_trax()
+    render_event()
+}
+
+$(window).on("load",function(){
+    connect_ws();
+    local_storage = new LocalStorage()
+    $(".box-api-content").val(local_storage.api_body).trigger("input")
+    render_api_history()
+    if((list_history.length)>0){
+        change_trax(0)
+        event_processor = new EventProcessor(list_event)
+    }
+});
+</script>
+{% endblock %} 

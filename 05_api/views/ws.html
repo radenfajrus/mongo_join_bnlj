@@ -1,0 +1,290 @@
+{% extends "layouts/main.html" %}
+
+{% block styles %}
+<script src="/assets/axios.min.js"></script>
+<script src="/assets/jquery-3.6.0.slim.min.js"></script>
+<style>
+    body {background: #ddd;}
+
+    @keyframes opacity {
+        from { opacity: 1.0; }
+        50% { opacity: 0.3; }
+        to { opacity: 1.0; }
+    }
+    
+    #btncontainer {
+        position: absolute;
+        bottom: 20px;
+        left: 50%;
+        transform: translate(-50%, 0);
+        padding: 10px;
+        z-index: 400;
+    }
+    #btngroup {
+         display: flex;
+         justify-content: center;
+         align-items: center;
+    }
+    #btngroup > button {
+        padding: 10px;
+        margin: 2px;
+        white-space: nowrap;
+    }
+    #notification {
+        position: absolute;
+        width: 100%;
+        height: 40px;
+        top: 20px;
+        left: 50%;
+        transform: translate(-50%, 0);
+        display: none;
+
+        z-index: -1;
+        word-break: normal;
+        word-wrap: break-word;
+    }
+    #notification.active {
+        z-index: 1000;
+        display: flex;
+    }
+    #notification_alert {
+        width: 100%;
+        height: 40px;
+        top: 20px;
+        margin: 0px 100px;
+
+        align-items: center;
+        display: flex;
+        justify-content: center;
+
+        background: yellowgreen;
+
+        z-index: 1000;
+        word-break: normal;
+        word-wrap: break-word;
+    }
+    #notification_alert.error {
+        background: palevioletred;
+    }
+</style>
+{% endblock %}
+
+
+{% block content %}
+<body>
+    <div id="mapcontainer">
+        <div id="main">
+            <div id="ws_status">WebSocket Not Started</div>
+            <div>Data</div>
+            <button id="delete">Reset Log</button>
+            <ul id="data"> 
+            </ul>
+        </div>
+        <div id="subscribecontainer" style="
+                position: fixed;
+                bottom: 10%;
+                right: 5%;
+                display: flex;
+            ">
+            <div id="subscribecontrol" style="flex-direction: column;display: flex;">
+                <input id="topic" placeholder='Topic' style="width: 400px;"></input>
+                <div id="subscribe_status" style="width: 400px;height: 200px;"></div>
+                <button id="subscribe">Subscribe</button>
+                <button id="unsubscribe">Unsubscribe</button>
+                <button id="stop">Stop Websocket</button>
+            </div>
+        </div>
+        <div id="notification">
+            <div id="notification_alert"></div>
+        </div>
+    </div>
+    <div id="loadercontainer" class="blink">
+        <div id="loader"></div>
+        <!-- <span id="loadertext">Loading...</span> -->
+    </div>
+</body>
+{% endblock %}
+
+
+{% block scripts %}
+<script>
+    const base_url = '<%= base_url %>';
+    function prettyfyJson() {
+        var ugly = document.getElementById('radiomap').value;
+        var obj = JSON.parse(ugly);
+        var pretty = JSON.stringify(obj, undefined, 4);
+        document.getElementById('radiomap').value = pretty;
+    }
+    function showNotifSuccess(msg) {
+        $("#notification").addClass('active');
+        $("#notification_alert").html(msg);
+        setTimeout(function(){
+            $("#notification").removeClass('active');
+            $("#notification_alert").html("");
+        },1500);
+    }
+    function showNotifError(msg) {
+        $("#notification").addClass('active');
+        $("#notification_alert").addClass('error');
+        $("#notification_alert").html(msg);
+        setTimeout(function(){
+            $("#notification").removeClass('active');
+            $("#notification_alert").removeClass('error');
+            $("#notification_alert").html("");
+        },1500);
+    }
+    function showPageError() {
+        $("#notification").addClass('active');
+        $("#notification_alert").addClass('error');
+        $("#notification_alert").html("Indoor Maps Not Available");
+    }
+
+    var ws;
+    var url;
+    var token;
+    var session;
+    var topic;
+    var topic_subscribed;
+    var stack = [];
+    var head = 0;
+    
+    function addStack(msg) {
+        let max_array = 20
+        if(stack.length>max_array) {
+            stack[head] = msg
+            head = (head+1)%max_array
+        }else{
+            stack.push(msg)
+        }
+        
+        let html_data = ``
+        for(let i in stack){
+            html_data = `<li>${stack[parseInt(i)+head]}</li>${html_data}`
+        }
+        $("#data").html(html_data)
+    }
+
+
+    function connect() {
+        $('#subscribe_status').val(`Connect to Websocket ${url}`)
+        ws = new WebSocket(url,'a');
+        ws.onopen = function() {
+
+            $('#ws_status').html(`Websocket Connected `)
+            $('#subscribe_status').html(`Auth Start -> ${token}`)
+
+            let auth_data = (session === undefined)?{"auth": `${token}`}:{"auth": `${token}`, "session":session}
+            ws.send(JSON.stringify(auth_data))
+
+            if(topic_subscribed){
+                $('#subscribe_status').html(`Subscribe Start -> ${topic_subscribed}`)
+                ws.send(JSON.stringify({
+                    "subscribe": `${topic_subscribed}`
+                }))
+                $('#subscribe_status').html(`Subscribed`)
+            }
+        };
+
+        ws.onmessage = function(e) {
+            console.log('Message:', e.data);
+            addStack(e.data)
+
+            let data = JSON.parse(e.data)
+            if(data.hasOwnProperty("auth") && data.hasOwnProperty("session")) {
+                session = data.session
+                $('#ws_status').html(`Websocket Connected -> ${session}`)
+            }
+        };
+
+        ws.onclose = function(e) {
+            $('#ws_status').html('Socket is closed. Reconnect will be attempted in 5 second  : ', e.reason)
+            console.log('Socket is closed. Reconnect will be attempted in 5 second.', e.reason);
+            var retry = 0;
+            $('#subscribe_status').html(`Websocket Reconnected (${retry}s)`)
+            setTimeout(function() {
+                connect();
+                retry = retry + 5
+                $('#subscribe_status').html(`Websocket Reconnected (${retry}s)`)
+            }, 5000);
+        };
+
+        ws.onerror = function(err) {
+            console.error('Socket encountered error: ', err.message, 'Closing socket');
+            ws.close();
+        };
+     }
+     function waitForSocketConnection(socket, callback, timeout = 30){
+        if(timeout<0){
+            console.log("timeout...")
+            return
+        }
+        setTimeout(
+            function () {
+                if (socket.readyState === 1) {
+                    console.log("Connection is made")
+                    if (callback != null){
+                        callback();
+                    }
+                } else {
+                    console.log("wait for connection...")
+                    timeout = timeout - 5
+                    waitForSocketConnection(socket, callback, timeout);
+                }
+
+            }, 5); // wait 5 milisecond for the connection...
+    }
+    $('#subscribe').click(async function (event) {
+        try{
+            topic = $('#topic').val()
+            if(!ws){
+                connect()
+            }
+        
+            waitForSocketConnection(ws,function(){
+                $('#subscribe_status').html(`Subscribe Start -> ${topic}`)
+                ws.send(JSON.stringify({
+                    "subscribe": `${topic}`
+                }))
+                topic_subscribed = topic
+                $('#subscribe_status').html(`Subscribed`)
+            })
+        }catch(error){
+            console.log(error)
+            showNotifError(error)
+        }
+    });
+    $('#unsubscribe').click(async function (event) {
+        try{
+            topic = $('#topic').val()
+
+            waitForSocketConnection(ws,function(){
+                $('#subscribe_status').html(`Unsubscribe Start -> ${topic}`)
+                ws.send(JSON.stringify({
+                    "unsubscribe": `${topic}`
+                }))
+                $('#subscribe_status').html(`Unsubscribed`)
+            })
+        }catch(error){
+            console.log(error)
+            showNotifError(error)
+        }
+    });
+    $('#delete').click(async function (event) {
+        stack = [];
+        head = 0;
+        $("#data").html(``);
+    });
+    $('#stop').click(async function (event) {
+        ws.close()
+        ws = undefined
+        $('#ws_status').html(`Websocket Not Connected`)
+        $('#subscribe_status').html(`Websocket Stopped`)
+    });
+
+    (() => {
+        let proto = location.protocol==="https:"?"wss":"ws"
+        url = `${proto}://${window.location.host}/wss`
+        connect()
+    })()
+</script>
+{% endblock %} 

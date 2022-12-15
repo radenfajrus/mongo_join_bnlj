@@ -2,9 +2,22 @@ version: '3.8'
 
 x-base: &base
   image: mongo:5.0.5
+  restart: on-failure
   volumes:
     - ./scripts:/scripts
-  network_mode: "host"
+  #network_mode: "host"
+  networks:
+    - cluster1
+
+networks:
+  cluster1:
+
+x-host: &host
+  extra_hosts:
+    - "m1:10.10.10.101"
+    - "m2:10.10.10.102"
+    - "m3:10.10.10.1"
+
 
 x-resource: &resource
   deploy:
@@ -20,24 +33,33 @@ services:
   ## Config Server Main
   c2-c3:
     container_name: c2-c3
+    ports:
+      - "0.0.0.0:17021:17021"
     command: |
-      /scripts/wait-for-it.sh m1:17021  -t 0 -- /scripts/wait-for-it.sh m2:17021  -t 0 -- mongod --bind_ip_all --port 17021 --configsvr --replSet cs
+      mongod --bind_ip_all --port 17021 --configsvr --replSet cs
     <<: *base
     <<: *resource
+    <<: *host
 
   ## Shards
   c2-s3:
     container_name: c2-s3
+    ports:
+      - "0.0.0.0:17022:17022"
     command: |
-      /scripts/wait-for-it.sh m1:17022  -t 0 -- /scripts/wait-for-it.sh m2:17022  -t 0 -- mongod --bind_ip_all --port 17022 --shardsvr --replSet rs3
+      mongod --bind_ip_all --port 17022 --shardsvr --replSet rs3
     <<: *base
     <<: *resource
+    <<: *host
 
   ## Router
   c2-r3:
-    image: mongo:5.0.5
     container_name: c2-r3
+    ports:
+      - "0.0.0.0:17023:17023"
     command: |
       /scripts/wait-for-it.sh m1:17022 -t 0  -- /scripts/wait-for-it.sh m2:17022 -t 0  -- /scripts/wait-for-it.sh m3:17022 -- mongos --port 17023 --configdb cs/m1:17021,m2:17021,m3:17021 --bind_ip_all
     <<: *base
     <<: *resource
+    <<: *host
+

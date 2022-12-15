@@ -1,31 +1,52 @@
 const mongoose = require("mongoose")
 const express = require("express")
+const path = require("path")
+const nunjucks = require('nunjucks')
 
 // INIT CONF
 require('dotenv').config()
 const conf = require("./config")
-console.log(conf.url)
 
 // INIT INFRA
 const Conn = require("./connection").ConnManager
 let conns = Conn.all()
-console.log(conns)
-conns["aaa"] = "bbb"
-
-console.log(Conn.all())
 
 // INIT SERVICE
 const Service = require("./service")
+const { env } = require("process")
 
 
 
 // INIT ROUTER
 const app = express();
+app.use(express.json()) 
+
 app.get("/", (req, res) => {
     res.send("Ok");
 });
 
-app.get("/coordinator", (req, res) => {
+
+app.use('/assets',express.static(path.join(__dirname, 'public/assets')));
+var nunjuck = nunjucks.configure( 'views', {
+    autoescape: true,
+    cache: false,
+    express: app
+} ) ;
+nunjuck.addGlobal('url_for',()=> `http://localhost:${conf.port}`);
+app.engine('html', nunjuck.render)
+app.set('view engine', 'html');
+app.set('views', 'views');
+
+app.use('/home', (req, res, next) => {
+    res.render('home.html');
+});
+app.use('/ws_test', (req, res, next) => {
+    res.render('ws.html');
+});
+  
+  
+
+app.post("/coordinator", (req, res) => {
     /*
         1. Init Param
         1. Get All Chunk Server
@@ -43,7 +64,8 @@ app.get("/coordinator", (req, res) => {
         9. Send Job to New Executor
         10. Promise Return Query Select All
     */
-    res.send("Coordinator");
+    res.json(req.body)
+    // res.send("Coordinator");
 });
 
 app.get("/executor", (req, res) => {
@@ -63,7 +85,74 @@ app.get("/executor", (req, res) => {
     res.send("Executor");
 });
 
+const ws = require('./websocket')
+const wsserver = new ws.WsServer(app,"/wss")
+wsserver.start()
 
-app.listen(conf.port, () => {
+app.post('/publish', (req,res) => {
+    wsserver.publish( req.body.topic, req.body.data)
+    let subscribers = []
+    ws.wsrepo.activeConnections.forEach( connection => {
+        let topic = (connection.topics)?connection.topics:[];
+        if(connection.topics.includes(req.body.topic)){
+            subscribers.push(connection.session)
+        }
+    })
+    let response = {"topic" : req.body.topic,"data" : req.body.data,"subscribers": subscribers}
+
+    res.type('application/json');
+    return res.status(200).json(response);
+})
+
+// const { MongoClient } = require('mongodb');
+// async function main() {
+//     const uri = "mongodb://admin:admin@m1:17013/bnlj?retryWrites=true&w=majority";
+//     const client = new MongoClient(uri);
+//     try {
+//         await client.connect();
+//     } finally {
+//         await client.close();
+//     }
+// }
+// main().catch(console.error);
+// const mongoCollectionWatcher = setInterval()
+
+mongoose.connect(
+    `mongodb://admin:admin@m1:17013/block_join_status?authSource=admin`, 
+    {
+      useNewUrlParser: true,
+      useFindAndModify: false,
+      useUnifiedTopology: true
+    }
+  );
+const Event = mongoose.model('Event', new mongoose.Schema({ 
+    location: String,
+    min: String,
+    max: String,
+    start_time: Date,
+    end_time: Date,
+    respon_time: Date,
+}));
+const Block = mongoose.model('Block', new mongoose.Schema({ 
+    source: String,
+    block1: String,
+    block2: String,
+    status: String,
+}));
+const BlockJoinStatus = mongoose.model('BlockJoinStatus', new mongoose.Schema({ 
+    trax_id: Number,
+    query: String,
+    start_time: Date,
+    end_time: Date,
+    blocks: String[Block],
+    events: String[Event],
+}));
+// Create a change stream. The 'change' event gets emitted when there's a
+// change in the database. Print what the change stream emits.
+BlockJoinStatus.watch().
+  on('change', data => console.log(data));
+
+
+wsserver.server.listen(conf.port, () => {
     console.log(`Listen on the port ${conf.port}...`);
 });

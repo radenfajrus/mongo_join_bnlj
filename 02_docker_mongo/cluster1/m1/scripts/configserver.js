@@ -12,3 +12,4 @@ var config_server = {
 var status_config_server = rs.initiate(config_server);
 
 printjson(status_config_server);
+

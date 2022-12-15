@@ -2,6 +2,7 @@ version: '3.8'
 
 x-base: &base
   image: mongo:5.0.5
+  restart: on-failure
   volumes:
     - ./scripts:/scripts
   #network_mode: "host"
@@ -15,8 +16,7 @@ x-host: &host
   extra_hosts:
     - "m1:10.10.10.101"
     - "m2:10.10.10.102"
-    - "m3:10.10.10.103"
-
+    - "m3:10.10.10.1"
 
 x-resource: &resource
   deploy:
@@ -46,7 +46,7 @@ services:
     ports:
       - "0.0.0.0:17012:17012"
     command: |
-      mongod --bind_ip_all --port 17012 --shardsvr --replSet rs2
+      mongod --bind_ip_all --port 17012 --shardsvr --replSet rs2 
     <<: *base
     <<: *resource
     <<: *host
@@ -61,3 +61,4 @@ services:
     <<: *base
     <<: *resource
     <<: *host
+
